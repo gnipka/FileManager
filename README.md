@@ -12,8 +12,7 @@
 
 ## Команды
 
- - `ls <img width="167" alt="3" src="https://user-images.githubusercontent.com/71972927/144089897-67687bbc-7c19-4f2e-80be-9d9c874402c1.png">
-nameDirectory` - вывод дерева с файлами каталогами, nameDirectory - абсолютный путь к каталогу
+ - `ls nameDirectory` - вывод дерева с файлами каталогами, nameDirectory - абсолютный путь к каталогу
 <img width="167" alt="3" src="https://user-images.githubusercontent.com/71972927/144089939-9d2388ed-6c28-4edd-bbe4-94d4510204ec.png">
 <img width="674" alt="2" src="https://user-images.githubusercontent.com/71972927/144089943-553972d2-82f1-4cee-af97-c7d8f93f7bec.png">
 
