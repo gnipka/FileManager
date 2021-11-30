@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace FileManager
 {
@@ -54,48 +56,6 @@ namespace FileManager
             return size;
         }
 
-        static void deleteFolder(string folder)
-        {
-            try
-            {
-                DirectoryInfo di = new DirectoryInfo(folder);
-                DirectoryInfo[] diA = di.GetDirectories();
-                FileInfo[] fi = di.GetFiles();
-                foreach (FileInfo f in fi)
-                {
-                    f.Delete();
-                }
-
-                foreach (DirectoryInfo df in diA)
-                {
-
-                    deleteFolder(df.FullName);
-
-                    if (df.GetDirectories().Length == 0 && df.GetFiles().Length == 0) df.Delete();
-                }
-            }
-
-            catch (DirectoryNotFoundException ex)
-            {
-                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                return;
-            }
-
-            catch (UnauthorizedAccessException ex)
-            {
-                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                return;
-            }
-
-            catch (Exception ex)
-            {
-                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                return;
-            }
-        }
 
         // Вывод страницы
         public static void OutputPage(int minCountFile, int maxCountFile, DirectoryInfo file)
@@ -268,46 +228,59 @@ namespace FileManager
             CountLevel = 0;
         }
 
-        public static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+        // копирование каталога
+        public static void DirCopy(string sourcePath, string destinationPath)
         {
-            DirectoryInfo dir = new DirectoryInfo(sourceDirName);
-
-            DirectoryInfo[] dirs = dir.GetDirectories();
-
+            var di = new DirectoryInfo(sourcePath);
+            
+            Directory.CreateDirectory(destinationPath + "\\" + di.Name);
+            List<FileSystemInfo> fsItems = null;
             try
             {
-                Directory.CreateDirectory(destDirName);
+                fsItems = di.GetFileSystemInfos().ToList();
             }
-            catch(Exception ex)
+            catch (System.UnauthorizedAccessException ex)
             {
                 File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
                 File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                return;
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                return;
             }
 
-            FileInfo[] files = dir.GetFiles();
-            foreach (FileInfo file in files)
+            for (int i = 0; i < fsItems.Count; i++)
             {
-                string tempPath = Path.Combine(destDirName, file.Name);
-                try
+
+                if (Directory.Exists(fsItems[i].FullName))
                 {
-                    file.CopyTo(tempPath, false);
+                    DirCopy(fsItems[i].FullName, destinationPath + "\\" + di.Name);
                 }
-                catch(Exception ex)
+                else
                 {
-                    File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                    File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                    File.Create(destinationPath + "\\" + di.Name + "\\" + fsItems[i].Name);
+                    try
+                    {
+                        File.Copy(fsItems[i].FullName, destinationPath + "\\" + di.Name + "\\" + fsItems[i].Name, true);
+                    }
+                    catch (System.IO.IOException ex)
+                    {
+                        File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                        File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                    }
+                    catch (Exception ex)
+                    {
+                        File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                        File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                    }
                 }
             }
 
-            if (copySubDirs)
-            {
-                foreach (DirectoryInfo subdir in dirs)
-                {
-                    string tempPath = Path.Combine(destDirName, subdir.Name);
-                    DirectoryCopy(subdir.FullName, tempPath, copySubDirs);
-                }
-            }
         }
+
         static void Main(string[] args)
         {
             Console.Title = "Файловый менеджер";
@@ -318,7 +291,32 @@ namespace FileManager
             Console.WriteLine("----------------------------------------------");
 
             string filename = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+
+            BinaryFormatter formatter = new BinaryFormatter();
+            // считываем директорию к которой последний раз обращались
+            using (FileStream fs = new FileStream("settings.dat", FileMode.OpenOrCreate))
+            {
+                try 
+                { 
+                    string str = ((string)formatter.Deserialize(fs));
+                    if (str != null && Directory.Exists(str.Trim()))
+                    {
+                        filename = String.Empty;
+                        filename = str;
+                    }
+                }
+                catch
+                {
+
+                }
+            }
+
             DirNow = filename;
+            using (FileStream fs = new FileStream("settings.dat", FileMode.OpenOrCreate))
+            {
+                formatter.Serialize(fs, DirNow);
+            }
+
             var file = new DirectoryInfo(filename);
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine(file);
@@ -328,7 +326,7 @@ namespace FileManager
             Paging(file, 0);
             while (true)
             {
-                Console.SetCursorPosition(0, 26);
+                //Console.SetCursorPosition(0, 25);
                 string cmd = Console.ReadLine();
                 if (cmd.Contains("ls"))
                 {
@@ -337,7 +335,14 @@ namespace FileManager
                     cmd = cmd.Remove(0, 2);
                     if (Directory.Exists(cmd.Trim()))
                     {
+                        DirNow = null;
                         DirNow = cmd.Trim();
+                        // записываем директорию к которой последний раз обратились
+                        using (FileStream fs = new FileStream("settings.dat", FileMode.OpenOrCreate))
+                        {
+                            formatter.Serialize(fs, DirNow);
+                        }
+
                         var di = new DirectoryInfo(cmd.Trim());
 
                         ClearLine(1, 14);
@@ -364,151 +369,103 @@ namespace FileManager
                     cmd = cmd.Trim();
                     cmd = cmd.Remove(0, 2);
                     cmd = cmd.Trim();
-                    if (cmd != "")
+
+                    if(cmd.Length > 1 && cmd.Substring(0, 2) == "*f")
                     {
-                        if (cmd[0] == '*')
+                        if (File.Exists(FileNow))
                         {
-                            cmd = cmd.Remove(0, 1);
-                            Directory.Move(DirNow, cmd.Trim()); ;
-                        }
-                        else if (cmd[0].ToString() + cmd[1].ToString() == "*f")
-                        {
-                            cmd = cmd.Remove(0, 2);
-                            cmd = cmd.Trim();
-                            if (File.Exists(FileNow))
+                            string destDir = cmd.Remove(0, 2).Trim();
+                            string sourceDir = FileNow;
+                            var path = new FileInfo(sourceDir).Name;
+                            try
                             {
-                                if (File.Exists(cmd))
-                                {
-                                    try
-                                    {
-                                        File.Copy(FileNow, cmd);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                                        File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                                        ClearLine(25, 5);
-                                        Console.SetCursorPosition(0, 25);
-                                        Console.WriteLine($"Не удалось скопировать файл с именем: {FileNow}");
-                                        Console.SetCursorPosition(0, 26);
-                                    }
-                                }
-                                else
-                                {
-                                    try
-                                    {
-                                        File.Create(cmd);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                                        File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                                        ClearLine(25, 5);
-                                        Console.SetCursorPosition(0, 25);
-                                        Console.WriteLine($"Не удалось создать файл с именем: {cmd}");
-                                        Console.SetCursorPosition(0, 26);
-                                    }
-                                }
+                                File.Copy(sourceDir, destDir + "\\" + path);
                             }
-                            else
+                            catch(System.IO.IOException ex)
                             {
+                                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
                                 ClearLine(25, 5);
                                 Console.SetCursorPosition(0, 25);
-                                Console.WriteLine("Файла не существует");
+                                Console.WriteLine("Не удалось скопировать файл");
                                 Console.SetCursorPosition(0, 26);
                             }
-
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine($"Файл скопирован и находится по пути: {destDir}");
+                            Console.SetCursorPosition(0, 26);
                         }
                         else
                         {
-                            string sourceDir = cmd.Substring(0, cmd.IndexOf(" -> "));
-                            string destDit = cmd.Substring(cmd.IndexOf(" -> ") + 4); ;
-                            if (Directory.Exists(sourceDir))
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Файл не существует");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                    }
+                    else if(cmd.Length > 1 && cmd[0] == '*')
+                    {
+                        if (Directory.Exists(DirNow))
+                        {
+                            string sourceDir = DirNow;
+                            var path = new DirectoryInfo(sourceDir).Name;
+                            string destDir = cmd.Remove(0, 1).Trim();
+
+                            DirCopy(sourceDir,destDir);
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine($"Каталог скопирован и находится по пути: {destDir + "\\" + path}");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                        else
+                        {
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Директория не существует");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                    }
+                    else if (cmd.Contains("->"))
+                    {
+                        int index = cmd.IndexOf("->");
+                        string sourceDir = cmd.Substring(0, index);
+                        string destDir = cmd.Substring(index + 3);
+                        if (Directory.Exists(sourceDir))
+                        {
+                            var path = new DirectoryInfo(sourceDir).Name;
+                            DirCopy(sourceDir, destDir);
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine($"Каталог скопирован и находится по пути: {destDir + "\\" + path}");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                        else if (File.Exists(sourceDir))
+                        {
+                            var path = new FileInfo(sourceDir).Name;
+                            try
                             {
-                                if (Directory.Exists(sourceDir))
-                                {
-                                    if (Directory.Exists(destDit))
-                                    {
-                                        DirectoryCopy(sourceDir, destDit, true);
-                                    }
-                                    else
-                                    {
-                                        Directory.CreateDirectory(destDit);
-                                        DirectoryCopy(sourceDir, destDit, true);
-                                    }
-                                    Console.SetCursorPosition(0, 26);
-                                }
-                                else
-                                {
-                                    ClearLine(25, 5);
-                                    Console.SetCursorPosition(0, 25);
-                                    Console.WriteLine("Каталог для копирования, не существует");
-                                    Console.SetCursorPosition(0, 26);
-                                }
+                                File.Copy(sourceDir, destDir + "\\" + path);
                             }
-                            else
+                            catch (System.IO.IOException ex)
                             {
-                                if (File.Exists(sourceDir))
-                                {
-                                    if (File.Exists(destDit))
-                                    {
-                                        try
-                                        {
-                                            var sr = new StreamReader(sourceDir);
-                                            var sw = new StreamWriter(destDit);
-                                            sw.WriteLine(sr.ReadToEnd());
-                                            sr.Close();
-                                            sw.Close();
-                                            ClearLine(25, 5);
-                                            Console.SetCursorPosition(0, 25);
-                                            Console.WriteLine("Файл скопирован");
-                                            Console.SetCursorPosition(0, 26);
-                                            //File.Copy(sourceDir, destDit, true);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                                            File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                                            ClearLine(25, 5);
-                                            Console.SetCursorPosition(0, 25);
-                                            Console.WriteLine($"Не удалось скопировать файл с именем: {sourceDir}");
-                                            Console.SetCursorPosition(0, 26);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        try
-                                        {
-                                            File.Create(destDit);
-                                            var sr = new StreamReader(sourceDir);
-                                            var sw = new StreamWriter(destDit);
-                                            sw.WriteLine(sr.ReadToEnd());
-                                            sr.Close();
-                                            sw.Close();
-                                            ClearLine(25, 5);
-                                            Console.SetCursorPosition(0, 25);
-                                            Console.WriteLine("Файл скопирован");
-                                            Console.SetCursorPosition(0, 26);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
-                                            File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
-                                            ClearLine(25, 5);
-                                            Console.SetCursorPosition(0, 25);
-                                            Console.WriteLine($"Не удалось создать файл с именем: {cmd}");
-                                            Console.SetCursorPosition(0, 26);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    ClearLine(25, 5);
-                                    Console.SetCursorPosition(0, 25);
-                                    Console.WriteLine("Файла не существует");
-                                    Console.SetCursorPosition(0, 26);
-                                }
+                                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                                ClearLine(25, 5);
+                                Console.SetCursorPosition(0, 25);
+                                Console.WriteLine("Не удалось скопировать файл");
+                                Console.SetCursorPosition(0, 26);
                             }
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine($"Файл скопирован и находится по пути: {destDir}");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                        else
+                        {
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine($"Каталог или файл не найден по адресу: {sourceDir}");
+                            Console.SetCursorPosition(0, 26);
                         }
                     }
                     else
@@ -518,54 +475,65 @@ namespace FileManager
                         Console.WriteLine("Команда не найдена");
                         Console.SetCursorPosition(0, 26);
                     }
+
                 }
                 else if (cmd.Contains("rm"))
                 {
                     cmd = cmd.Trim();
                     cmd = cmd.Remove(0, 2);
                     cmd = cmd.Trim();
-                    if(cmd[0] == '*')
-                    {
-                        cmd = cmd.Remove(0, 1);
-                        if (Directory.Exists(DirNow))
-                        {
-                            deleteFolder(DirNow);
-                            ClearLine(25, 5);
-                            Console.SetCursorPosition(0, 25);
-                            Console.WriteLine("Каталог удален");
-                            Console.SetCursorPosition(0, 26);
-                        }
-                        else
-                        {
-
-                            Console.SetCursorPosition(0, 25);
-                            Console.WriteLine("Каталога по предыдущему пути не существует");
-                            Console.SetCursorPosition(0, 26);
-
-                        }
-                    }
-                    else if(cmd[0].ToString() + cmd[1].ToString() == "*f")
+                  
+                    if(cmd[0].ToString() + cmd[1].ToString() == "*f")
                     {
                         cmd = cmd.Remove(0, 2);
                         if (File.Exists(FileNow))
                         {
-                            File.Delete(FileNow);
+                            try
+                            {
+                                File.Delete(FileNow);
+                            }
+                            catch(Exception ex)
+                            {
+                                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                                ClearLine(25, 5);
+                                Console.SetCursorPosition(0, 25);
+                                Console.WriteLine("Не удалось удалить файл");
+                                Console.SetCursorPosition(0, 26);
+                                break;
+                            }
+                            ClearLine(25, 5);
                             Console.SetCursorPosition(0, 25);
                             Console.WriteLine("Файл удален");
                             Console.SetCursorPosition(0, 26);
                         }
                         else
                         {
+                            ClearLine(25, 5);
                             Console.SetCursorPosition(0, 25);
                             Console.WriteLine("Файла по предыдущему пути не существует");
                             Console.SetCursorPosition(0, 26);
                         }
                     }
-                    else
+                    else if (cmd[0] == '*')
                     {
-                        if (Directory.Exists(cmd))
+                        cmd = cmd.Remove(0, 1);
+                        if (Directory.Exists(DirNow))
                         {
-                            deleteFolder(cmd);
+                            try
+                            {
+                                Directory.Delete(DirNow, true);
+                            }
+                            catch(Exception ex)
+                            {
+                                File.AppendAllText("errorsrandom_name_exception.txt", $"{DateTime.Now} Сообщение об ошибке: {ex.Message}");
+                                File.AppendAllText("errorsrandom_name_exception.txt", Environment.NewLine);
+                                ClearLine(25, 5);
+                                Console.SetCursorPosition(0, 25);
+                                Console.WriteLine("Не удалось удалить каталог");
+                                Console.SetCursorPosition(0, 26);
+                                break;
+                            }
                             ClearLine(25, 5);
                             Console.SetCursorPosition(0, 25);
                             Console.WriteLine("Каталог удален");
@@ -573,19 +541,37 @@ namespace FileManager
                         }
                         else
                         {
-                            if (File.Exists(cmd))
-                            {
-                                File.Delete(cmd);
-                                Console.SetCursorPosition(0, 25);
-                                Console.WriteLine("Файл удален");
-                                Console.SetCursorPosition(0, 26);
-                            }
-                            else
-                            {
-                                Console.SetCursorPosition(0, 25);
-                                Console.WriteLine("Файла или каталога по такому пути не существует");
-                                Console.SetCursorPosition(0, 26);
-                            }
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Каталога по предыдущему пути не существует");
+                            Console.SetCursorPosition(0, 26);
+
+                        }
+                    }
+                    else
+                    {
+                        if (Directory.Exists(cmd))
+                        {
+                            Directory.Delete(cmd, true);
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Каталог удален");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                        else if (File.Exists(cmd))
+                        {
+                            File.Delete(cmd);
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Файл удален");
+                            Console.SetCursorPosition(0, 26);
+                        }
+                        else
+                        {
+                            ClearLine(25, 5);
+                            Console.SetCursorPosition(0, 25);
+                            Console.WriteLine("Файла или каталога по такому пути не существует");
+                            Console.SetCursorPosition(0, 26);
                         }
                     }
                 }
@@ -605,6 +591,12 @@ namespace FileManager
                                 ClearLine(16, 7);
                                 FileNow = String.Empty;
                                 FileNow = DirNow + "\\" + cmd.Trim();
+                                // записываем директорию к которой последний раз обратились
+                                using (FileStream fs = new FileStream("settings.dat", FileMode.OpenOrCreate))
+                                {
+                                    formatter.Serialize(fs, DirNow);
+                                }
+
                                 OutputInfoFile(DirNow + "\\" + cmd.Trim());
                                 Paging(di, 1);
                             }
@@ -624,6 +616,12 @@ namespace FileManager
                                 OutputInfoFile(cmd.Trim());
                                 FileNow = String.Empty;
                                 FileNow = cmd.Trim();
+                                // записываем директорию к которой последний раз обратились
+                                using (FileStream fs = new FileStream("settings.dat", FileMode.OpenOrCreate))
+                                {
+                                    formatter.Serialize(fs, DirNow);
+                                }
+
                                 cmd = cmd.Substring(0, cmd.LastIndexOf('\\'));
                                 var di = new DirectoryInfo(cmd);
                                 ClearLine(1, 14);
@@ -652,7 +650,7 @@ namespace FileManager
                         ClearLine(25, 5);
                         Console.SetCursorPosition(0, 25);
                         Console.WriteLine("Укажите файл");
-                        Console.SetCursorPosition(0, 27);
+                        Console.SetCursorPosition(0, 26);
                     }
                 }
                 else
