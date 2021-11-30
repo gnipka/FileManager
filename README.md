@@ -4,4 +4,4 @@
 **Файловый менеджер** — компьютерная программа, предоставляющая интерфейс пользователя для работы с файловой системой и файлами.
 
 ## Интерфейс программы
-![enter image description here](file:///C:/Users/admin/Desktop/1.png)
+![alt tag](file:///C:/Users/admin/Desktop/1.png)
